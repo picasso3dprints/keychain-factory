@@ -131,7 +131,12 @@ please do a real pass:
       on an Icon Keychain — confirm the ring snaps to the named
       position and stays fused to the plate (no floating disconnected
       ring) in every case, including with an icon attached on both the
-      left and right side of text.
+      left and right side of text. Test specifically with irregular
+      shapes most likely to expose a bbox-vs-real-shape mismatch — a
+      single short line like "I", a very asymmetric icon, and a corner
+      preset (Top-Left/Top-Right/etc.) on each — confirm the ring
+      always lands on real material, not empty space inside where the
+      bounding box used to assume something was.
 - [ ] Attach an icon to text, then try Icon offset X (confirm it nudges
       the icon further from the text without breaking the connection)
       and Icon plate margin set very different from the main Outline
@@ -383,6 +388,23 @@ below) smarter — it used to just assume the keyring was always on the
 text's left side, which stops being true once you can put it anywhere.
 It now measures which side (text or icon) the keyring actually ended
 up closest to and groups it with that one, whatever preset is active.
+
+**Presets aim at the real shape, not its bounding box.** The first
+version of this positioned presets against the design's bounding
+box — e.g. "top-left" meant "bbox's left edge, bbox's top edge" —
+which works fine for a solid rectangle but breaks down for anything
+irregular: a single narrow letter, an icon with a thin extremity, or
+text with an icon only on one side could all have a bbox corner sitting
+over genuinely empty space, landing the ring somewhere it never
+actually touches material. It now works the other way around: for
+whichever direction the preset points, it scans the actual rendered
+shape's own boundary points and anchors to the real point that's
+furthest in that direction — which by definition is guaranteed to be
+part of the shape — then averages across any other points near that
+same extreme so it doesn't lock onto one arbitrary spot along a flat
+edge. "Auto" uses the same mechanism now too (left-direction for Text
+Keychain, top-direction for Icon Keychain), so this fix applies even
+if you never touch the preset grid.
 
 ## Independent icon position + plate margin
 
