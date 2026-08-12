@@ -8,7 +8,7 @@
 // variant is what we actually want.
 export const FONT_TABLE = [
   ["Anton", "Anton"],
-  ["Baloo 2 Bold", "Baloo 2:style=Bold"],
+  ["Baloo 2 Bold", "Baloo 2"],
   ["Bree Serif", "Bree Serif"],
   ["Bebas Neue", "Bebas Neue"],
   ["Archivo Black", "Archivo Black"],

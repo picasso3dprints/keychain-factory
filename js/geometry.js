@@ -169,6 +169,17 @@ function clipperOffset(pathsArr, deltaMm) {
   return solution;
 }
 
+// "Baloo 2 Bold" used to request Google's variable-font weight axis
+// directly (family=Baloo+2:wght@700), which produced corrupted,
+// self-intersecting glyph outlines for some characters — most likely
+// a limitation in how opentype.js handles variable font instancing,
+// not something fixable on our end. Workaround: fonts.js now requests
+// plain "Baloo 2" (a reliably clean static weight), and this adds a
+// synthetic bold boost using the same offset mechanism the Boldness
+// slider already uses everywhere else, scaled to that line's own text
+// size so it looks right at any size.
+const SYNTHETIC_BOLD_BOOST = { "Baloo 2": 0.02 }; // extra offset = lineSize * this fraction
+
 function circlePolygon(cx, cy, r, segments = 96) {
   const pts = [];
   for (let i = 0; i < segments; i++) {
@@ -196,10 +207,12 @@ function translateClipperPaths(paths, dx, dy) {
 }
 
 async function buildTextUnits(params) {
-  const { lineConfigs, lineSpacingPct, boldMm } = params;
-  // lineConfigs: [{ text, descriptor, size }, ...] — already caller-filtered
-  // to non-empty lines, with a guaranteed single-line "TEXT" fallback if
-  // every line was empty.
+  const { lineConfigs, lineSpacingPct } = params;
+  // lineConfigs: [{ text, descriptor, size, boldMm }, ...] — already
+  // caller-filtered to non-empty lines, with a guaranteed single-line
+  // "TEXT" fallback if every line was empty. boldMm is per-line (not
+  // shared) so a synthetic-bold boost can target one specific font
+  // without affecting others — see SYNTHETIC_BOLD_BOOST below.
   const numLines = lineConfigs.length;
 
   const fonts = await Promise.all(
@@ -219,7 +232,7 @@ async function buildTextUnits(params) {
   const units = [];
   for (let i = 0; i < numLines; i++) {
     const font = fonts[i];
-    const { text, size } = lineConfigs[i];
+    const { text, size, boldMm } = lineConfigs[i];
     const unitsPerEm = font.unitsPerEm;
     const centerOffset = ((font.ascender + font.descender) / 2 / unitsPerEm) * size;
     const baselineY = lineCenters[i] - centerOffset;
@@ -430,14 +443,17 @@ export async function buildKeychainModel(THREE, p) {
       { text: p.line1, descriptor: p.lineDescriptors[0], size: p.lineSizes[0] },
       { text: p.line2, descriptor: p.lineDescriptors[1], size: p.lineSizes[1] },
     ];
-    const nonEmpty = rawLines.filter((l) => l.text.length > 0);
-    const lineConfigs = nonEmpty.length > 0 ? nonEmpty : [{ text: "TEXT", descriptor: p.lineDescriptors[0], size: p.lineSizes[0] }];
+    const withBold = (l) => ({
+      ...l,
+      boldMm: bold + (SYNTHETIC_BOLD_BOOST[l.descriptor] || 0) * l.size,
+    });
+    const nonEmpty = rawLines.filter((l) => l.text.length > 0).map(withBold);
+    const lineConfigs = nonEmpty.length > 0 ? nonEmpty : [withBold({ text: "TEXT", descriptor: p.lineDescriptors[0], size: p.lineSizes[0] })];
     const avgSize = lineConfigs.reduce((s, l) => s + l.size, 0) / lineConfigs.length;
 
     const rawTextUnits = await buildTextUnits({
       lineConfigs,
       lineSpacingPct: p.lineSpacingPct,
-      boldMm: bold,
     });
     // bridges only need to keep the flat plate connected — pulling them
     // out here means they never get extruded as their own raised block
