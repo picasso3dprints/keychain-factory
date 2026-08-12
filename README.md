@@ -198,7 +198,11 @@ please do a real pass:
 
 If a particular font ever fails to load (Google occasionally renames a
 family), the status line will show an error naming that font — that's
-the one thing to watch for across all 100.
+the one thing to watch for across all 300. If a font renders but looks
+visually broken/self-intersecting rather than failing to load, see the
+Baloo 2 Bold note under "Known intentional differences" below — same
+underlying cause (variable font weight instancing) and same fix
+pattern likely applies.
 
 ## What's new since the first version
 
@@ -504,3 +508,14 @@ plate/extrude/keyring pipeline.
   at print resolution.
 - Plate shape is outline-only (hugs the letters/icon) — Rectangle was
   offered for a while and has been removed.
+- **"Baloo 2 Bold" fetches the plain "Baloo 2" family, not a Google
+  Fonts variable-weight instance.** Requesting the bold weight axis
+  directly (`wght@700`) produced corrupted, self-intersecting glyph
+  outlines for some characters — confirmed by testing, most likely an
+  opentype.js limitation with variable font instancing rather than
+  anything fixable in this app's own code. The fix sidesteps it
+  entirely: fetch the reliably-clean default weight, then synthesize
+  the bold look with the same offset math the Boldness slider already
+  uses (see `SYNTHETIC_BOLD_BOOST` in `js/geometry.js`). Worth knowing
+  if another font ever shows similar corruption — the same fix pattern
+  (fetch plain, offset synthetically) applies.
