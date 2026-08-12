@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Keychain Factory</title>
+<link rel="icon" type="image/png" href="assets/logo-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap"
+  rel="stylesheet"
+/>
+<link rel="stylesheet" href="css/style.css" />
+
+<!-- three.js needs "three" to resolve for its addon modules (OrbitControls, STLExporter) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<!-- UMD libraries used by geometry.js as window globals -->
+<script src="https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/dist/opentype.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js"></script>
+</head>
+<body>
+
+<div id="offlineBanner" class="offline-banner hidden">
+  You're offline — fonts, icons, and license checks need an internet
+  connection. Reconnect and try again.
+</div>
+<div id="depsErrorBanner" class="offline-banner error hidden">
+  This page didn't fully load (a required script was blocked or failed
+  to download). Try refreshing — if it keeps happening, check your
+  network/ad blocker and reload.
+</div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <img src="assets/logo-icon.png" alt="Keychain Factory logo" class="brand-logo" />
+      <div>
+        <h1>Keychain Factory</h1>
+        <p class="tagline">Design your own 3D-printable name keychain, right in your browser.</p>
+      </div>
+    </div>
+    <div class="account-widget" id="accountWidget">
+      <span id="accountStatus">Free tier</span>
+      <button type="button" id="accountActionBtn" title="Export already works free with the starter fonts & icons — this unlocks the rest">Unlock all fonts &amp; icons</button>
+    </div>
+    <div class="export-widget" id="exportWidget">
+      <button type="button" id="exportBtn" disabled>Export</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============ export format modal ============ -->
+<div id="exportModal" class="modal-overlay hidden">
+  <div class="modal-backdrop" id="exportModalBackdrop"></div>
+  <div class="gate-card modal-card">
+    <button type="button" class="modal-close" id="exportModalClose">&times;</button>
+    <h2>Export your keychain</h2>
+    <div class="export-format-row">
+      <button type="button" class="export-format-btn" data-format="stl">
+        <strong>STL</strong>
+        <span>Standard format, works with any slicer</span>
+      </button>
+      <button type="button" class="export-format-btn" data-format="3mf">
+        <strong>3MF</strong>
+        <span>Keeps your colors (Paint Mode, plate/text)</span>
+      </button>
+    </div>
+    <p class="gate-status" id="exportLicenseNotice"></p>
+  </div>
+</div>
+
+<!-- ============ license unlock modal (only shown on demand) ============ -->
+<div id="licenseModal" class="modal-overlay hidden">
+  <div class="modal-backdrop" id="modalBackdrop"></div>
+  <div class="gate-card modal-card">
+    <button type="button" class="modal-close" id="modalClose">&times;</button>
+    <h2 id="modalHeading">Unlock all fonts &amp; icons</h2>
+    <p class="gate-status">
+      Keychain Factory is free forever with 3 starter fonts (Anton,
+      Baloo 2 Bold, Bree Serif) and 5 starter icons (Heart, Star, Paw,
+      Anchor, Fire) — export included, no purchase needed. A one-time
+      purchase unlocks the other 297 fonts and 295 icons. Pick the
+      license that matches how you'll use what you print.
+    </p>
+
+    <p class="gate-status hidden" id="currentLicenseStatus"></p>
+
+    <div class="license-tiers">
+      <div class="license-tier-card">
+        <h3>Personal Use</h3>
+        <p>For keychains you keep, gift, or give away — not for resale.</p>
+        <a id="buyPersonalLink" href="#" target="_blank" rel="noopener" class="buy-link">Buy Personal License</a>
+      </div>
+      <div class="license-tier-card">
+        <h3>Commercial Use</h3>
+        <p>Includes the right to sell items you 3D print with this tool.</p>
+        <a id="buyCommercialLink" href="#" target="_blank" rel="noopener" class="buy-link">Buy Commercial License</a>
+      </div>
+    </div>
+
+    <form id="licenseForm">
+      <label>Already purchased? Enter your license key <span class="hint">(emailed to you after purchase)</span>
+        <input type="text" id="licenseKeyInput" required autocomplete="off" spellcheck="false" />
+      </label>
+      <p class="gate-error" id="licenseError"></p>
+      <button type="submit" id="licenseSubmitBtn">Unlock</button>
+    </form>
+
+    <button type="button" id="removeLicenseBtn" class="remove-license-btn hidden">Remove license &amp; return to free tier</button>
+  </div>
+</div>
+
+<main class="layout">
+  <section class="controls">
+
+    <div class="type-select-wrap">
+      <label>Keychain Type
+        <select id="keychainType">
+          <option value="text" selected>Text Keychain</option>
+          <option value="icon">Icon Keychain</option>
+        </select>
+      </label>
+      <button type="button" id="resetDefaultsBtn" class="reset-btn">&#8634; Reset to Defaults</button>
+    </div>
+
+    <fieldset class="type-text-only">
+      <legend>Text</legend>
+      <label>Line 1<input type="text" id="line1" value="TEXT" maxlength="20" /></label>
+      <label class="sub-label">Font<select id="line1Font" class="line-font-select"></select></label>
+      <label class="sub-label">Size <span class="val" data-for="line1Size">17</span> mm
+        <input type="range" id="line1Size" min="4" max="50" step="0.5" value="17" />
+      </label>
+
+      <label>Line 2 <span class="hint">(optional)</span><input type="text" id="line2" value="" maxlength="20" /></label>
+      <label class="sub-label">Font<select id="line2Font" class="line-font-select"></select></label>
+      <label class="sub-label">Size <span class="val" data-for="line2Size">17</span> mm
+        <input type="range" id="line2Size" min="4" max="50" step="0.5" value="17" />
+      </label>
+      <p class="lock-hint" id="fontLockHint">🔒 297 more fonts unlock with a license</p>
+
+      <label>Line spacing <span class="val" data-for="lineSpacing">100</span>%
+        <input type="range" id="lineSpacing" min="100" max="250" value="100" />
+      </label>
+
+      <label>Boldness <span class="val" data-for="bold">0</span>
+        <input type="range" id="bold" min="0" max="30" value="0" />
+      </label>
+
+      <label>Icon <span class="hint">(optional, one per keychain)</span></label>
+      <div class="icon-picker" id="iconPicker"></div>
+      <button type="button" class="icon-toggle-btn" id="iconPickerToggle">Show More ▾</button>
+      <p class="lock-hint" id="iconLockHint">🔒 295 more icons unlock with a license</p>
+      <div class="icon-position-row" id="iconPositionRow">
+        <span class="icon-position-label">Position</span>
+        <button type="button" data-pos="left">Left of text</button>
+        <button type="button" data-pos="right">Right of text</button>
+      </div>
+      <label>Icon offset X <span class="val" data-for="iconOffsetX">0</span> mm
+        <input type="range" id="iconOffsetX" min="-30" max="30" value="0" />
+      </label>
+      <label>Icon plate margin <span class="val" data-for="iconOutlineMargin">25</span> (x0.1mm)
+        <input type="range" id="iconOutlineMargin" min="5" max="120" value="25" />
+      </label>
+    </fieldset>
+
+    <fieldset class="type-icon-only" style="display: none;">
+      <legend>Icon</legend>
+      <label>Choose an icon <span class="hint">(required)</span></label>
+      <div class="icon-picker" id="soloIconPicker"></div>
+      <button type="button" class="icon-toggle-btn" id="soloIconPickerToggle">Show More ▾</button>
+      <p class="lock-hint" id="soloIconLockHint">🔒 295 more icons unlock with a license</p>
+      <label>Icon size <span class="val" data-for="soloIconSize">30</span> mm
+        <input type="range" id="soloIconSize" min="10" max="60" value="30" />
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Style</legend>
+      <label>Style
+        <select id="style">
+          <option value="raised" selected>Raised (2 colors)</option>
+          <option value="engraved">Engraved (1 color)</option>
+        </select>
+      </label>
+      <label>Text height / depth <span class="val" data-for="textDepth">14</span> (x0.1mm)
+        <input type="range" id="textDepth" min="4" max="50" value="14" />
+      </label>
+      <label>Plate color</label>
+      <button type="button" class="color-trigger" id="plateColorTrigger">
+        <span class="color-swatch" id="plateColorSwatch"></span>
+        <span id="plateColorLabel">Black</span>
+        <span class="export-caret">▾</span>
+      </button>
+      <label>Text color <span class="hint type-not-engraved" id="textColorHintPaint">(per-letter color available below in Paint Mode)</span></label>
+      <button type="button" class="color-trigger" id="textColorTrigger">
+        <span class="color-swatch" id="textColorSwatch"></span>
+        <span id="textColorLabel">Green</span>
+        <span class="export-caret">▾</span>
+      </button>
+    </fieldset>
+
+    <fieldset class="type-not-engraved" id="paintModeFieldset">
+      <legend>Paint Mode</legend>
+      <label class="paint-toggle-row">
+        <input type="checkbox" id="paintModeToggle" />
+        Color each letter/icon individually
+      </label>
+      <div class="paint-letter-list hidden" id="paintLetterList"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Plate</legend>
+      <label>Plate thickness <span class="val" data-for="plateThick">3</span> mm
+        <input type="range" id="plateThick" min="1" max="15" step="0.5" value="3" />
+      </label>
+      <label>Outline margin <span class="val" data-for="outlineMargin">25</span> (x0.1mm)
+        <input type="range" id="outlineMargin" min="5" max="120" value="25" />
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Keyring hole</legend>
+      <label>Hole diameter <span class="val" data-for="holeDiameter">30</span> (x0.1mm)
+        <input type="range" id="holeDiameter" min="20" max="150" value="30" />
+      </label>
+      <label>Ring wall thickness <span class="val" data-for="ringThickness">5</span> (x0.1mm)
+        <input type="range" id="ringThickness" min="5" max="150" value="5" />
+      </label>
+      <label>Position preset <span class="hint">(auto picks a sensible default)</span></label>
+      <div class="keyring-preset-grid" id="keyringPresetGrid">
+        <button type="button" data-preset="top-left" title="Top Left">&#8598;</button>
+        <button type="button" data-preset="top" title="Top">&#8593;</button>
+        <button type="button" data-preset="top-right" title="Top Right">&#8599;</button>
+        <button type="button" data-preset="left" title="Left">&#8592;</button>
+        <button type="button" data-preset="auto" title="Auto" class="selected">&#9679;</button>
+        <button type="button" data-preset="right" title="Right">&#8594;</button>
+        <button type="button" data-preset="bottom-left" title="Bottom Left">&#8601;</button>
+        <button type="button" data-preset="bottom" title="Bottom">&#8595;</button>
+        <button type="button" data-preset="bottom-right" title="Bottom Right">&#8600;</button>
+      </div>
+      <label>Offset X <span class="val" data-for="keyringOffsetX">0</span> mm
+        <input type="range" id="keyringOffsetX" min="-50" max="50" value="0" />
+      </label>
+      <label>Offset Y <span class="val" data-for="keyringOffsetY">0</span> mm
+        <input type="range" id="keyringOffsetY" min="-50" max="50" value="0" />
+      </label>
+    </fieldset>
+
+  </section>
+
+  <section class="viewer-wrap">
+    <canvas id="viewer"></canvas>
+    <div id="dimsPanel"></div>
+    <div class="viewer-hint">Click the keychain to see its dimensions</div>
+    <div class="viewer-footer">
+      <span id="status">Rendering…</span>
+    </div>
+  </section>
+</main>
+
+<!-- ============ shared color picker panel (reused by plate/text/letter swatches) ============ -->
+<div id="colorPanel" class="color-panel hidden">
+  <div class="color-panel-grid" id="colorPanelGrid"></div>
+  <button type="button" id="colorPanelClear" class="color-panel-clear hidden">Reset to default</button>
+</div>
+
+<footer class="sitefooter">
+  Made with OpenSCAD → open-source web tooling. Fonts via Google Fonts (OFL).
+  <br />
+  Questions or issues? Email <strong>picasso3dprints@gmail.com</strong>
+  <span class="hint">(please use "Keychain Factory Support Request" as the subject line, or it won't get a response)</span>
+</footer>
+
+<script type="module" src="js/license.js" id="licenseScript"></script>
+<script type="module" src="js/main.js" id="mainScript"></script>
+<script>
+  // Catches the one failure mode the in-module check can't: if a CDN
+  // dependency (three.js, etc.) fails to load, the module never starts
+  // executing at all, so nothing inside it can show an error. A script
+  // element still fires a plain 'error' event in that case, from the
+  // outside, which this catches instead.
+  function showDepsErrorBanner() {
+    var el = document.getElementById("depsErrorBanner");
+    if (el) el.classList.remove("hidden");
+  }
+  document.getElementById("mainScript").addEventListener("error", showDepsErrorBanner);
+  document.getElementById("licenseScript").addEventListener("error", showDepsErrorBanner);
+</script>
+</body>
+</html>
