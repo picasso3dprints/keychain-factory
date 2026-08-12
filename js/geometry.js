@@ -10,7 +10,7 @@
 // And ES module imports of three.js passed in.
 // ============================================================
 
-import { googleFontsCssUrl, EMOJI_FONT_DESCRIPTOR, LOGO_ICON_KEY } from "./fonts.js";
+import { googleFontsCssUrl, EMOJI_FONT_DESCRIPTOR } from "./fonts.js";
 
 const CLIPPER_SCALE = 2000; // mm -> integer clipper units (0.5 micron resolution)
 const CURVE_STEPS = 20; // bezier flattening resolution (higher = smoother letterforms)
@@ -299,60 +299,9 @@ function stripVariationSelectors(str) {
   return str.replace(/[\uFE0E\uFE0F]/g, "");
 }
 
-// A simplified vector version of the Keychain Factory logo (keyring +
-// connector + a rounded diamond tag, no text) — built as plain
-// geometry rather than traced from the logo image, so it stays a
-// clean, print-friendly single silhouette like every other icon here.
-// Unit-scale artwork, then rescaled to targetHeightMm exactly like the
-// emoji path below.
-function buildLogoIconContours(targetHeightMm) {
-  const ringOuterR = 0.3, ringInnerR = 0.17, ringCenterY = 0.52;
-  const ringOuter = toClipperPath(circlePolygon(0, ringCenterY, ringOuterR, 64));
-  const ringInner = toClipperPath(circlePolygon(0, ringCenterY, ringInnerR, 64));
-
-  const linkW = 0.08;
-  const linkTop = ringCenterY - ringOuterR + 0.03;
-  const linkBottom = 0.16;
-  const link = toClipperPath([
-    [-linkW / 2, linkTop], [linkW / 2, linkTop],
-    [linkW / 2, linkBottom], [-linkW / 2, linkBottom],
-  ]);
-
-  const tagR = 0.46, tagCenterY = -0.12, chamfer = 0.12;
-  const tag = toClipperPath([
-    [0, tagCenterY + tagR],
-    [chamfer, tagCenterY + tagR - chamfer],
-    [tagR, tagCenterY],
-    [chamfer, tagCenterY - tagR + chamfer],
-    [0, tagCenterY - tagR],
-    [-chamfer, tagCenterY - tagR + chamfer],
-    [-tagR, tagCenterY],
-    [-chamfer, tagCenterY + tagR - chamfer],
-  ]);
-
-  const unionedSolid = clipperUnion([ringOuter, link, tag]);
-  const withHole = clipperDifference(unionedSolid, [ringInner]);
-  const bboxLocal = bboxFromClipperContours(withHole, null);
-  if (!bboxLocal) return { paths: [], width: 0 };
-
-  const glyphH = Math.max(bboxLocal.maxY - bboxLocal.minY, 0.001);
-  const scale = targetHeightMm / glyphH;
-  const cx = (bboxLocal.minX + bboxLocal.maxX) / 2;
-  const cy = (bboxLocal.minY + bboxLocal.maxY) / 2;
-
-  const scaledMm = withHole.map(fromClipperPath).map((poly) =>
-    poly.map(([x, y]) => [(x - cx) * scale, (y - cy) * scale])
-  );
-  const paths = scaledMm.map(toClipperPath);
-  const width = (bboxLocal.maxX - bboxLocal.minX) * scale;
-  return { paths, width };
-}
-
 // Returns clipper paths for one icon glyph, scaled to targetHeightMm tall
 // and centered on (0,0) — the caller positions it from there.
 async function buildIconContours(iconChar, targetHeightMm) {
-  if (iconChar === LOGO_ICON_KEY) return buildLogoIconContours(targetHeightMm);
-
   const clean = stripVariationSelectors(iconChar);
   if (!clean) return { paths: [], width: 0 };
 
@@ -552,63 +501,50 @@ export async function buildKeychainModel(THREE, p) {
   const midX = (bbox.minX + bbox.maxX) / 2;
   const midY = (bbox.minY + bbox.maxY) / 2;
 
-  // Presets used to aim at the *bounding box's* edges/corners, which
-  // assumes the shape fills its bbox evenly — false for anything
-  // irregular (a single narrow letter, an icon with a thin extremity,
-  // text with an icon only on one side), so a corner preset could land
-  // the ring over empty space with nothing to actually fuse to. This
-  // instead finds the real point on the design's own boundary that's
-  // furthest in the preset's direction, guaranteeing genuine contact,
-  // then centers across any other points near that same extreme so it
-  // doesn't lock onto one arbitrary point on a flat edge.
-  function normalize2D(dx, dy) {
-    const len = Math.hypot(dx, dy) || 1;
-    return [dx / len, dy / len];
-  }
-  function findEdgeAnchor(points, dir, tolerance = 0.6) {
-    if (!points.length) return [midX, midY];
-    let maxDot = -Infinity;
-    for (const [x, y] of points) {
-      const d = x * dir[0] + y * dir[1];
-      if (d > maxDot) maxDot = d;
-    }
-    const perp = [-dir[1], dir[0]];
-    let sumPerp = 0, count = 0;
-    for (const [x, y] of points) {
-      const d = x * dir[0] + y * dir[1];
-      if (d >= maxDot - tolerance) {
-        sumPerp += x * perp[0] + y * perp[1];
-        count++;
-      }
-    }
-    const avgPerp = count ? sumPerp / count : 0;
-    return [maxDot * dir[0] + avgPerp * perp[0], maxDot * dir[1] + avgPerp * perp[1]];
-  }
-
-  const DIRS = {
-    top: [0, 1],
-    bottom: [0, -1],
-    left: [-1, 0],
-    right: [1, 0],
-    "top-left": normalize2D(-1, 1),
-    "top-right": normalize2D(1, 1),
-    "bottom-left": normalize2D(-1, -1),
-    "bottom-right": normalize2D(1, -1),
-  };
-
   const preset = p.keyringPreset || "auto";
-  const dir =
-    preset === "auto"
-      ? p.keychainType === "icon"
-        ? DIRS.top
-        : DIRS.left
-      : DIRS[preset] || DIRS.left;
-
-  const shapePoints = textClipperContours.flatMap(fromClipperPath);
-  const [anchorX, anchorY] = findEdgeAnchor(shapePoints, dir);
-  let connectorX = anchorX + dir[0] * edgeGap;
-  let connectorY = anchorY + dir[1] * edgeGap;
-
+  let connectorX, connectorY;
+  switch (preset) {
+    case "top":
+      connectorX = midX;
+      connectorY = bbox.maxY + edgeGap;
+      break;
+    case "bottom":
+      connectorX = midX;
+      connectorY = bbox.minY - edgeGap;
+      break;
+    case "left":
+      connectorX = bbox.minX - edgeGap;
+      connectorY = midY;
+      break;
+    case "right":
+      connectorX = bbox.maxX + edgeGap;
+      connectorY = midY;
+      break;
+    case "top-left":
+      connectorX = bbox.minX + connectorR;
+      connectorY = bbox.maxY + edgeGap;
+      break;
+    case "top-right":
+      connectorX = bbox.maxX - connectorR;
+      connectorY = bbox.maxY + edgeGap;
+      break;
+    case "bottom-left":
+      connectorX = bbox.minX + connectorR;
+      connectorY = bbox.minY - edgeGap;
+      break;
+    case "bottom-right":
+      connectorX = bbox.maxX - connectorR;
+      connectorY = bbox.minY - edgeGap;
+      break;
+    default: // "auto" — the original per-type default: top-center for Icon Keychain, far-left for Text Keychain
+      if (p.keychainType === "icon") {
+        connectorX = midX;
+        connectorY = bbox.maxY + edgeGap;
+      } else {
+        connectorX = bbox.minX - edgeGap;
+        connectorY = midY;
+      }
+  }
   // manual nudge still layers on top of whichever preset (or auto) is active
   connectorX += p.keyringOffsetX || 0;
   connectorY += p.keyringOffsetY || 0;

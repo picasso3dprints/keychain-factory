@@ -131,12 +131,7 @@ please do a real pass:
       on an Icon Keychain — confirm the ring snaps to the named
       position and stays fused to the plate (no floating disconnected
       ring) in every case, including with an icon attached on both the
-      left and right side of text. Test specifically with irregular
-      shapes most likely to expose a bbox-vs-real-shape mismatch — a
-      single short line like "I", a very asymmetric icon, and a corner
-      preset (Top-Left/Top-Right/etc.) on each — confirm the ring
-      always lands on real material, not empty space inside where the
-      bounding box used to assume something was.
+      left and right side of text.
 - [ ] Attach an icon to text, then try Icon offset X (confirm it nudges
       the icon further from the text without breaking the connection)
       and Icon plate margin set very different from the main Outline
@@ -203,11 +198,7 @@ please do a real pass:
 
 If a particular font ever fails to load (Google occasionally renames a
 family), the status line will show an error naming that font — that's
-the one thing to watch for across all 300. If a font renders but looks
-visually broken/self-intersecting rather than failing to load, see the
-Baloo 2 Bold note under "Known intentional differences" below — same
-underlying cause (variable font weight instancing) and same fix
-pattern likely applies.
+the one thing to watch for across all 100.
 
 ## What's new since the first version
 
@@ -389,23 +380,6 @@ text's left side, which stops being true once you can put it anywhere.
 It now measures which side (text or icon) the keyring actually ended
 up closest to and groups it with that one, whatever preset is active.
 
-**Presets aim at the real shape, not its bounding box.** The first
-version of this positioned presets against the design's bounding
-box — e.g. "top-left" meant "bbox's left edge, bbox's top edge" —
-which works fine for a solid rectangle but breaks down for anything
-irregular: a single narrow letter, an icon with a thin extremity, or
-text with an icon only on one side could all have a bbox corner sitting
-over genuinely empty space, landing the ring somewhere it never
-actually touches material. It now works the other way around: for
-whichever direction the preset points, it scans the actual rendered
-shape's own boundary points and anchors to the real point that's
-furthest in that direction — which by definition is guaranteed to be
-part of the shape — then averages across any other points near that
-same extreme so it doesn't lock onto one arbitrary spot along a flat
-edge. "Auto" uses the same mechanism now too (left-direction for Text
-Keychain, top-direction for Icon Keychain), so this fix applies even
-if you never touch the preset grid.
-
 ## Independent icon position + plate margin
 
 When an icon is attached to text (Text Keychain type), two more
@@ -463,24 +437,6 @@ based on its own size, then centers the whole stack — which
 mathematically reduces to the exact same result as before when every
 line happens to share one size, so nothing changed visually for
 existing single-font designs.
-
-## The logo icon (a real custom icon, not an emoji)
-
-One icon in the palette is the actual Keychain Factory logo (ring +
-tag, no text) rather than an emoji — it replaced the credit card icon,
-is one of the free-tier icons, and Paw Print moved to paid to make
-room for it in that slot. It's built differently from every other icon
-here: instead of pulling a glyph from a font, `buildLogoIconContours()`
-in `js/geometry.js` constructs it as plain parametric geometry (a
-keyring circle with a real hole, a small connector, a rounded diamond
-tag) — a simplified single-color silhouette of the real logo, not a
-traced image, since that's what stays clean and printable the same way
-every other icon here is. `js/fonts.js` exports `LOGO_ICON_KEY`, a
-sentinel string standing in for it in `ICON_PALETTE`; both
-`js/geometry.js` and `js/main.js` check for that exact value to route
-around the normal emoji-font path — geometry-side to build the actual
-shape, UI-side to show `assets/logo-icon.png` in the picker button and
-Paint Mode swatch instead of raw placeholder text.
 
 ## Colors + Paint Mode
 
@@ -548,14 +504,3 @@ plate/extrude/keyring pipeline.
   at print resolution.
 - Plate shape is outline-only (hugs the letters/icon) — Rectangle was
   offered for a while and has been removed.
-- **"Baloo 2 Bold" fetches the plain "Baloo 2" family, not a Google
-  Fonts variable-weight instance.** Requesting the bold weight axis
-  directly (`wght@700`) produced corrupted, self-intersecting glyph
-  outlines for some characters — confirmed by testing, most likely an
-  opentype.js limitation with variable font instancing rather than
-  anything fixable in this app's own code. The fix sidesteps it
-  entirely: fetch the reliably-clean default weight, then synthesize
-  the bold look with the same offset math the Boldness slider already
-  uses (see `SYNTHETIC_BOLD_BOOST` in `js/geometry.js`). Worth knowing
-  if another font ever shows similar corruption — the same fix pattern
-  (fetch plain, offset synthetically) applies.
