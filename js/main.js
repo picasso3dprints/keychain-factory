@@ -1,7 +1,7 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { STLExporter } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/exporters/STLExporter.js";
-import { FONT_TABLE, findDescriptor, ICON_PALETTE, FREE_FONT_NAMES, FREE_ICONS } from "./fonts.js";
+import { FONT_TABLE, findDescriptor, ICON_PALETTE, FREE_FONT_NAMES, FREE_ICONS, LOGO_ICON_KEY } from "./fonts.js";
 import { buildKeychainModel } from "./geometry.js";
 import { COLOR_PALETTE, colorName } from "./colors.js";
 
@@ -121,6 +121,24 @@ function bindSelect(id, key) {
 function syncLabel(id, value) {
   const label = document.querySelector(`[data-for="${id}"]`);
   if (label) label.textContent = value;
+}
+
+// The logo icon isn't a real emoji character, so it can't just be set
+// as a button's textContent like every other icon — show the actual
+// logo image instead.
+function setIconButtonContent(btn, icon) {
+  if (icon === LOGO_ICON_KEY) {
+    btn.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = "assets/logo-icon.png";
+    img.alt = "Keychain Factory logo";
+    img.className = "icon-btn-logo-img";
+    btn.appendChild(img);
+    btn.title = "Keychain Factory logo";
+  } else {
+    btn.textContent = icon;
+    btn.title = icon;
+  }
 }
 
 // Turns a caught error into a message that actually helps — network
@@ -332,10 +350,18 @@ function renderPaintLetterList() {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "paint-letter-btn";
-    btn.textContent = unit.char;
+    const isLogo = unit.char === LOGO_ICON_KEY;
+    const label = isLogo ? "logo" : unit.char;
+    if (isLogo) {
+      const mark = document.createElement("span");
+      mark.className = "paint-letter-logo-img";
+      btn.appendChild(mark);
+    } else {
+      btn.textContent = unit.char;
+    }
     const hex = state.letterColors[unit.key] || state.textColorHex;
     btn.style.background = hex;
-    btn.title = `Color for "${unit.char}"`;
+    btn.title = `Color for "${label}"`;
     btn.addEventListener("click", () => {
       openColorPanel(
         btn,
@@ -410,8 +436,7 @@ for (const icon of ICON_PALETTE) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "icon-btn";
-  btn.textContent = icon;
-  btn.title = icon;
+  setIconButtonContent(btn, icon);
   if (icon === state.soloIconChar) btn.classList.add("selected");
   btn.addEventListener("click", () => {
     if (isIconLocked(icon)) {
@@ -445,8 +470,7 @@ for (const icon of ICON_PALETTE) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "icon-btn";
-  btn.textContent = icon;
-  btn.title = icon;
+  setIconButtonContent(btn, icon);
   btn.addEventListener("click", () => {
     if (isIconLocked(icon)) {
       if (typeof window.openLicenseModal === "function") window.openLicenseModal();

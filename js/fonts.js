@@ -343,9 +343,17 @@ export const FREE_FONT_NAMES = ["Anton", "Baloo 2 Bold", "Bree Serif"];
 // opentype.js -> outline -> extrude pipeline as regular text.
 export const EMOJI_FONT_DESCRIPTOR = "Noto Emoji";
 
+// Sentinel value standing in for the Keychain Factory logo icon (ring +
+// tag, no text) inside ICON_PALETTE. It's not a real emoji character —
+// geometry.js checks for this exact string and builds a small vector
+// shape for it directly instead of going through the emoji-font lookup,
+// and main.js checks for it to render the real logo image in the
+// picker button instead of plain text.
+export const LOGO_ICON_KEY = "__kf_logo__";
+
 // Available to everyone with no license — the rest of ICON_PALETTE
 // requires a Personal or Commercial license key to select.
-export const FREE_ICONS = ["❤️", "⭐", "🐾", "⚓", "🔥"];
+export const FREE_ICONS = ["❤️", "⭐", LOGO_ICON_KEY, "⚓", "🔥"];
 
 // 300 single-codepoint icons (a few include the U+FE0F variation selector,
 // which geometry.js strips before rendering — that stray character was the
@@ -353,7 +361,7 @@ export const FREE_ICONS = ["❤️", "⭐", "🐾", "⚓", "🔥"];
 // avoids flags, skin-tone modifiers, and multi-part ZWJ sequences (couples,
 // families, professions), which render unreliably across emoji fonts.
 export const ICON_PALETTE = [
-  "❤️", "⭐", "🐾", "⚓", "🔥", "⚡", "🌙", "☀️", "🍀", "🦋",
+  "❤️", "⭐", LOGO_ICON_KEY, "⚓", "🔥", "⚡", "🌙", "☀️", "🍀", "🦋",
   "🐱", "🐶", "🎮", "🎵", "✈️", "🌸", "💀", "👑", "🐝", "🌊",
   "🎯", "🚀", "🏀", "⚽", "🐉", "🦄", "💎", "🎸", "🌵", "🍕",
   "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸",
@@ -384,6 +392,6 @@ export const ICON_PALETTE = [
   "⛰️", "🌋", "🗻", "⛅", "⛈️", "❄️", "🌪️", "🌫️", "🌀", "☔",
   "🌱", "🌿", "☘️", "🎍", "🎄", "🌰", "🍃", "🌾", "💐", "🥀",
   "🌺", "⌚", "📱", "💻", "🖥️", "📷", "🔍", "🔦", "🕯️", "💰",
-  "💳", "📦", "✏️", "📐", "✂️", "🔒", "🔨", "⚙️", "🧲", "🔗",
+  "🐾", "📦", "✏️", "📐", "✂️", "🔒", "🔨", "⚙️", "🧲", "🔗",
   "🧪", "🔬", "🔭", "💊", "🎈", "🎉", "🎀", "🎫", "🖼️", "🧶",
 ];

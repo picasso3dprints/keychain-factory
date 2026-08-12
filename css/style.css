@@ -211,6 +211,22 @@ input[type="range"]::-moz-range-thumb {
   padding: 7px 0;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn-logo-img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+.paint-letter-logo-img {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: #06231a;
+  -webkit-mask: url("assets/logo-icon.png") center / contain no-repeat;
+  mask: url("assets/logo-icon.png") center / contain no-repeat;
 }
 .icon-btn:hover {
   background: var(--accent-soft);

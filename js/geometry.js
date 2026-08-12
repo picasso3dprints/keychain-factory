@@ -10,7 +10,7 @@
 // And ES module imports of three.js passed in.
 // ============================================================
 
-import { googleFontsCssUrl, EMOJI_FONT_DESCRIPTOR } from "./fonts.js";
+import { googleFontsCssUrl, EMOJI_FONT_DESCRIPTOR, LOGO_ICON_KEY } from "./fonts.js";
 
 const CLIPPER_SCALE = 2000; // mm -> integer clipper units (0.5 micron resolution)
 const CURVE_STEPS = 20; // bezier flattening resolution (higher = smoother letterforms)
@@ -299,9 +299,60 @@ function stripVariationSelectors(str) {
   return str.replace(/[\uFE0E\uFE0F]/g, "");
 }
 
+// A simplified vector version of the Keychain Factory logo (keyring +
+// connector + a rounded diamond tag, no text) — built as plain
+// geometry rather than traced from the logo image, so it stays a
+// clean, print-friendly single silhouette like every other icon here.
+// Unit-scale artwork, then rescaled to targetHeightMm exactly like the
+// emoji path below.
+function buildLogoIconContours(targetHeightMm) {
+  const ringOuterR = 0.3, ringInnerR = 0.17, ringCenterY = 0.52;
+  const ringOuter = toClipperPath(circlePolygon(0, ringCenterY, ringOuterR, 64));
+  const ringInner = toClipperPath(circlePolygon(0, ringCenterY, ringInnerR, 64));
+
+  const linkW = 0.08;
+  const linkTop = ringCenterY - ringOuterR + 0.03;
+  const linkBottom = 0.16;
+  const link = toClipperPath([
+    [-linkW / 2, linkTop], [linkW / 2, linkTop],
+    [linkW / 2, linkBottom], [-linkW / 2, linkBottom],
+  ]);
+
+  const tagR = 0.46, tagCenterY = -0.12, chamfer = 0.12;
+  const tag = toClipperPath([
+    [0, tagCenterY + tagR],
+    [chamfer, tagCenterY + tagR - chamfer],
+    [tagR, tagCenterY],
+    [chamfer, tagCenterY - tagR + chamfer],
+    [0, tagCenterY - tagR],
+    [-chamfer, tagCenterY - tagR + chamfer],
+    [-tagR, tagCenterY],
+    [-chamfer, tagCenterY + tagR - chamfer],
+  ]);
+
+  const unionedSolid = clipperUnion([ringOuter, link, tag]);
+  const withHole = clipperDifference(unionedSolid, [ringInner]);
+  const bboxLocal = bboxFromClipperContours(withHole, null);
+  if (!bboxLocal) return { paths: [], width: 0 };
+
+  const glyphH = Math.max(bboxLocal.maxY - bboxLocal.minY, 0.001);
+  const scale = targetHeightMm / glyphH;
+  const cx = (bboxLocal.minX + bboxLocal.maxX) / 2;
+  const cy = (bboxLocal.minY + bboxLocal.maxY) / 2;
+
+  const scaledMm = withHole.map(fromClipperPath).map((poly) =>
+    poly.map(([x, y]) => [(x - cx) * scale, (y - cy) * scale])
+  );
+  const paths = scaledMm.map(toClipperPath);
+  const width = (bboxLocal.maxX - bboxLocal.minX) * scale;
+  return { paths, width };
+}
+
 // Returns clipper paths for one icon glyph, scaled to targetHeightMm tall
 // and centered on (0,0) — the caller positions it from there.
 async function buildIconContours(iconChar, targetHeightMm) {
+  if (iconChar === LOGO_ICON_KEY) return buildLogoIconContours(targetHeightMm);
+
   const clean = stripVariationSelectors(iconChar);
   if (!clean) return { paths: [], width: 0 };
 
